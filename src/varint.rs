@@ -1,0 +1,41 @@
+/// varints as implemented in SQLite
+pub fn write(value: u64) -> Vec<u8> {
+    let mut v = value;
+    if (v & ((0xff000000) << 32)) != 0 {
+        let mut result = vec![0_u8; 9];
+        result[8] = v as u8;
+        v >>= 8;
+        for i in (0..=7).rev() {
+            result[i] = ((v & 0x7f) | 0x80) as u8;
+            v >>= 7;
+        }
+        result
+    } else {
+        let mut result = Vec::new();
+        while v != 0 {
+            result.push(((v & 0x7f) | 0x80) as u8);
+            v >>= 7;
+        }
+        result[0] &= 0x7f;
+
+        result.reverse();
+        result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test() {
+        assert_eq!(vec![0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF], write(0xffffffffffffffff));
+    }
+
+    #[test]
+    fn test_write1() {
+        let a:i16 = -1;
+        println!("{}", a as u16);
+        assert_eq!(vec![1], write(0x01));
+    }
+}
