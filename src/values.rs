@@ -42,7 +42,7 @@ fn sqlite_integer_to_bytes(value: i64) -> Vec<u8> {
     if value == 0 || value == 1 {
         vec![]
     } else {
-        return long_to_bytes(value, get_length_of_byte_encoding(value));
+        return i64_to_bytes(value, get_length_of_byte_encoding(value));
     }
 }
 
