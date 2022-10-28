@@ -1,36 +1,44 @@
 use byteorder::{BigEndian, ByteOrder};
 use crate::varint;
 
-pub enum Value {
-    String(String),
-    Blob(Vec<u8>),
-    Integer(i64),
-    Float(f64),
+pub struct Value {
+    pub datatype: Vec<u8>,
+    pub data: Vec<u8>,
 }
 
-/// returns (datatype, value)
-pub fn get_bytes(value: Value) -> (Vec<u8>, Vec<u8>) {
-    match value {
-        Value::String(value) => {
-            let bytes = value.chars().map(|c| c as u8).collect::<Vec<_>>();
-            (varint::write((bytes.len() * 2 + 13) as u64), bytes)
-        }
-        Value::Blob(value) => {
-            (varint::write((value.len() * 2 + 12) as u64), value)
-        }
-        Value::Integer(value) => {
-            (get_int_type(value), integer_to_bytes(value))
-        }
-        Value::Float(value) => {
-            let mut buffer = [0 as u8; 8];
-            BigEndian::write_f64(&mut buffer, value);
-            (vec![7], buffer.to_vec())
-        }
+
+impl Value {
+    pub fn get_length(&self) -> usize {
+        self.datatype.len() + self.data.len()
     }
 }
 
+pub fn string(value: &str) -> Value {
+    let bytes = value.chars().map(|c| c as u8).collect::<Vec<_>>();
+    Value { datatype: varint::write((bytes.len() * 2 + 13) as u64), data: bytes }
+}
+
+pub fn blob(value: Vec<u8>) -> Value {
+    Value { datatype: varint::write((value.len() * 2 + 12) as u64), data: value }
+}
+
+pub fn integer(value: i64) -> Value {
+    Value { datatype: get_int_type(value), data: sqlite_integer_to_bytes(value) }
+}
+
+pub fn float(value: f64) -> Value {
+    let mut buffer = [0 as u8; 8];
+    BigEndian::write_f64(&mut buffer, value);
+    Value { datatype: vec![7], data: buffer.to_vec() }
+}
+
+pub fn get_length(value: &Value) -> usize {
+    value.datatype.len() + value.data.len()
+}
+
+/// sqlite specific way to encode integers
 /// returns a variable length Vec of u8
-fn integer_to_bytes(value: i64) -> Vec<u8> {
+fn sqlite_integer_to_bytes(value: i64) -> Vec<u8> {
     if value == 0 || value == 1 {
         vec![]
     } else {
@@ -38,7 +46,7 @@ fn integer_to_bytes(value: i64) -> Vec<u8> {
     }
 }
 
-fn long_to_bytes(n: i64, nbytes: u8) -> Vec<u8> {
+fn i64_to_bytes(n: i64, nbytes: u8) -> Vec<u8> {
     let mut bytes = vec![];
     for i in 0..nbytes {
         bytes.push(((n >> (nbytes - i - 1) * 8) & 0xFF) as u8);
@@ -59,7 +67,7 @@ fn get_int_type(value: i64) -> Vec<u8> {
         } else if length < 7 {
             varint::write(5)
         } else {
-            varint::write(5)
+            varint::write(6)
         }
     }
 }
@@ -88,62 +96,55 @@ fn get_length_of_byte_encoding(value: i64) -> u8 {
 
 #[cfg(test)]
 mod tests {
-    use std::mem;
-    use crate::values::{get_bytes, Value};
+    use crate::values::Value;
+    use super::*;
 
     #[test]
     fn test_string() {
-        let v = Value::String("hello".to_owned());
-        let byte_rep = get_bytes(v);
-        assert_eq!(byte_rep.0, vec![23]);
-        assert_eq!(byte_rep.1, vec![0x68, 0x65, 0x6C, 0x6C, 0x6F]);
+        let v = string("hello");
+        assert_eq!(v.datatype, vec![23]);
+        assert_eq!(v.data, vec![0x68, 0x65, 0x6C, 0x6C, 0x6F]);
     }
 
     #[test]
     fn test_blob() {
-        let v = Value::Blob(vec![1, 2, 3, 4, 5]);
-        let byte_rep = get_bytes(v);
-        assert_eq!(byte_rep.0, vec![22]);
-        assert_eq!(byte_rep.1, vec![1, 2, 3, 4, 5]);
+        let v = blob(vec![1, 2, 3, 4, 5]);
+        assert_eq!(v.datatype, vec![22]);
+        assert_eq!(v.data, vec![1, 2, 3, 4, 5]);
     }
 
     #[test]
     fn test_float() {
-        let v = Value::Float(1.1);
-        let byte_rep = get_bytes(v);
-        assert_eq!(byte_rep.0, vec![7]);
-        assert_eq!(byte_rep.1, vec![0x3f, 0xf1, 0x99, 0x99, 0x99, 0x99, 0x99, 0x9a]);
+        let v = float(1.1);
+        assert_eq!(v.datatype, vec![7]);
+        assert_eq!(v.data, vec![0x3f, 0xf1, 0x99, 0x99, 0x99, 0x99, 0x99, 0x9a]);
     }
 
     #[test]
     fn test_integer0() {
-        let v = Value::Integer(0);
-        let byte_rep = get_bytes(v);
-        assert_eq!(byte_rep.0, vec![8]);
-        assert_eq!(byte_rep.1, vec![]);
+        let v = integer(0);
+        assert_eq!(v.datatype, vec![8]);
+        assert_eq!(v.data, vec![]);
     }
 
     #[test]
     fn test_integer1() {
-        let v = Value::Integer(1);
-        let byte_rep = get_bytes(v);
-        assert_eq!(byte_rep.0, vec![9]);
-        assert_eq!(byte_rep.1, vec![]);
+        let v = integer(1);
+        assert_eq!(v.datatype, vec![9]);
+        assert_eq!(v.data, vec![]);
     }
 
     #[test]
     fn test_integer2() {
-        let v = Value::Integer(2);
-        let byte_rep = get_bytes(v);
-        assert_eq!(byte_rep.0, vec![1]);
-        assert_eq!(byte_rep.1, vec![2]);
+        let v = integer(2);
+        assert_eq!(v.datatype, vec![1]);
+        assert_eq!(v.data, vec![2]);
     }
 
     #[test]
     fn test_integer128() {
-        let v = Value::Integer(128);
-        let byte_rep = get_bytes(v);
-        assert_eq!(byte_rep.0, vec![2]);
-        assert_eq!(byte_rep.1, vec![0, 128]);
+        let v = integer(128);
+        assert_eq!(v.datatype, vec![2]);
+        assert_eq!(v.data, vec![0, 128]);
     }
 }
