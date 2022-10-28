@@ -20,14 +20,7 @@ impl ByteBuffer {
     }
 
     /// forward put unsigned byte array
-    pub fn put_u8a(&mut self, bytes: &[u8]) {
-        for v in bytes {
-            self.data[self.fw_position as usize] = *v;
-            self.fw_position += 1;
-        }
-    }
-
-    pub fn put_u8v(&mut self, bytes: &Vec<u8>) {
+    pub fn put_bytes(&mut self, bytes: &[u8]) {
         for v in bytes {
             self.data[self.fw_position as usize] = *v;
             self.fw_position += 1;
@@ -35,7 +28,7 @@ impl ByteBuffer {
     }
 
     /// backward put unsigned byte array
-    pub fn put_u8a_bw(&mut self, bytes: &[u8]) {
+    pub fn put_bytes_bw(&mut self, bytes: &[u8]) {
         self.bw_position -= bytes.len() as u16;
         for v in bytes {
             self.data[self.bw_position as usize] = *v;
@@ -43,50 +36,42 @@ impl ByteBuffer {
         }
     }
 
-    pub fn put_vec_u8_bw(&mut self, bytes: Vec<u8>) {
-        self.bw_position -= bytes.len() as u16;
-        for v in bytes {
-            self.data[self.bw_position as usize] = v;
-            self.bw_position += 1;
-        }
-    }
-
     /// forward put unsigned byte
     pub fn put_u8(&mut self, byte: u8) {
-        self.put_u8a(&[byte]);
+        self.put_bytes(&[byte]);
     }
 
     /// backward put unsigned byte
     pub fn put_u8_bw(&mut self, byte: u8) {
-        self.put_u8a_bw(&[byte]);
+        self.put_bytes_bw(&[byte]);
     }
 
     /// forward put unsigned 16bit integer
     pub fn put_u16(&mut self, val: u16) {
         let mut buf = [0; 2];
         BigEndian::write_u16(&mut buf, val);
-        self.put_u8a(&buf);
+        self.put_bytes(&buf);
     }
 
     /// backward put unsigned 16bit integer
     pub fn put_u16_bw(&mut self, val: u16) {
         let mut buf = [0; 2];
         BigEndian::write_u16(&mut buf, val);
-        self.put_u8a_bw(&buf);
+        self.put_bytes_bw(&buf);
     }
 
     /// forward put unsigned 16bit integer
     pub fn put_u32(&mut self, val: u32) {
         let mut buf = [0; 4];
         BigEndian::write_u32(&mut buf, val);
-        self.put_u8a(&buf);
+        self.put_bytes(&buf);
     }
 
     /// backward put unsigned 32bit integer
     pub fn put_u32_bw(&mut self, val: u32) {
         let mut buf = [0; 4];
         BigEndian::write_u32(&mut buf, val);
-        self.put_u8a_bw(&buf);
+        self.put_bytes_bw(&buf);
     }
 }
 
@@ -104,7 +89,7 @@ mod tests {
     #[test]
     fn test_u8a() {
         let mut b = ByteBuffer::new(2);
-        b.put_u8a(&[1, 2]);
+        b.put_bytes(&[1, 2]);
         assert_eq!(b.data[0], 1);
         assert_eq!(b.data[1], 2);
     }

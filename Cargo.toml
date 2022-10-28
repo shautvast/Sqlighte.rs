@@ -7,3 +7,7 @@ edition = "2021"
 
 [dependencies]
 byteorder = "1.4.3"
+
+[lib]
+name = "sqlighters"
+crate-type = ["lib"]

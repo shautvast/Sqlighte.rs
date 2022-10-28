@@ -61,15 +61,15 @@ impl Page {
     }
 
     pub fn put_u8a(&mut self, value: &[u8]) {
-        self.data.put_u8a(value);
+        self.data.put_bytes(value);
     }
 
     pub fn put_u8a_bw(&mut self, value: &[u8]) {
-        self.data.put_u8a_bw(value);
+        self.data.put_bytes_bw(value);
     }
 
     pub fn put_vec_u8_bw(&mut self, value: Vec<u8>) {
-        self.data.put_vec_u8_bw(value);
+        self.data.put_bytes_bw(&value);
     }
 
     pub fn put_u8(&mut self, value: u8) {

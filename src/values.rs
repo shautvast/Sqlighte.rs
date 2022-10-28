@@ -27,7 +27,7 @@ pub fn integer(value: i64) -> Value {
 }
 
 pub fn float(value: f64) -> Value {
-    let mut buffer = [0 as u8; 8];
+    let mut buffer = [0_u8; 8];
     BigEndian::write_f64(&mut buffer, value);
     Value { datatype: vec![7], data: buffer.to_vec() }
 }
@@ -42,14 +42,14 @@ fn sqlite_integer_to_bytes(value: i64) -> Vec<u8> {
     if value == 0 || value == 1 {
         vec![]
     } else {
-        return i64_to_bytes(value, get_length_of_byte_encoding(value));
+        i64_to_bytes(value, get_length_of_byte_encoding(value))
     }
 }
 
 fn i64_to_bytes(n: i64, nbytes: u8) -> Vec<u8> {
     let mut bytes = vec![];
     for i in 0..nbytes {
-        bytes.push(((n >> (nbytes - i - 1) * 8) & 0xFF) as u8);
+        bytes.push(((n >> ((nbytes - i - 1) * 8)) & 0xFF) as u8);
     }
 
     bytes

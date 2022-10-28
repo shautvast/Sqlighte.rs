@@ -1,5 +1,21 @@
 use crate::page::Page;
 
+pub struct Database {
+    schema: SchemaRecord,
+    leaf_pages: Vec<Page>,
+}
+
+impl Database {
+    pub fn new(schema: SchemaRecord, leaf_pages: Vec<Page>) -> Self {
+        Self {
+            schema,
+            leaf_pages,
+        }
+    }
+}
+
+pub struct SchemaRecord {}
+
 
 fn write_header(mut rootpage: Page, n_pages: u32) {
     rootpage.put_u8a(&MAGIC_HEADER);

@@ -26,23 +26,23 @@ impl Record {
         let rowid_bytes = varint::write(self.rowid);
 
         let mut buffer = ByteBuffer::new(length_bytes.len() as u16 + rowid_bytes.len() as u16 + record_length);
-        buffer.put_u8v(&length_bytes);
-        buffer.put_u8v(&rowid_bytes);
+        buffer.put_bytes(&length_bytes);
+        buffer.put_bytes(&rowid_bytes);
 
         // 'The initial portion of the payload that does not spill to overflow pages.'
         let length_of_encoded_column_types: usize = self.values.iter()
             .map(|v| v.datatype.len())
             .sum();
-        buffer.put_u8v(&varint::write((length_of_encoded_column_types + 1) as u64));
+        buffer.put_bytes(&varint::write((length_of_encoded_column_types + 1) as u64));
 
         //write all types
         for v in self.values.iter() {
-            buffer.put_u8v(&v.datatype)
+            buffer.put_bytes(&v.datatype)
         }
 
         //  write all values
         for v in self.values.iter() {
-            buffer.put_u8v(&v.data) //copies individual bytes into a buffer...should I avoid copying?
+            buffer.put_bytes(&v.data) //copies individual bytes into a buffer...should I avoid copying?
         }
         buffer.data
     }
