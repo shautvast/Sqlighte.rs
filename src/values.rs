@@ -8,8 +8,8 @@ pub struct Value {
 
 
 impl Value {
-    pub fn get_length(&self) -> usize {
-        self.datatype.len() + self.data.len()
+    pub fn get_length(&self) -> u16 {
+        (self.datatype.len() + self.data.len()) as u16
     }
 }
 

@@ -1,6 +1,7 @@
 use crate::bytebuffer::ByteBuffer;
 use crate::database;
-const POSITION_CELL_COUNT: u32 = 3;
+
+pub const POSITION_CELL_COUNT: u16 = 3;
 const START_OF_CONTENT_AREA: u32 = 5;
 
 pub enum PageType {
@@ -11,16 +12,16 @@ pub enum PageType {
 /// Represents an SQLite page
 pub struct Page {
     data: ByteBuffer,
-    key: i64,
+    pub key: u64,
     children: Vec<Page>,
     number: u32,
     page_type: PageType,
 }
 
 impl Page {
-    fn with_capacity(size: u16, page_type: PageType) -> Self {
+    pub fn with_capacity(size: u16, page_type: PageType) -> Self {
         Self {
-            data: ByteBuffer::new(size as usize),
+            data: ByteBuffer::new(size as u16),
             key: 0,
             children: Vec::new(),
             number: 0,
@@ -28,13 +29,13 @@ impl Page {
         }
     }
 
-    fn new_leaf() -> Self {
+    pub fn new_leaf() -> Self {
         let mut page = Page::with_capacity(database::DEFAULT_PAGE_SIZE, PageType::Leaf);
         page.put_u8(database::TABLE_LEAF_PAGE);
         page
     }
 
-    fn new_interior() -> Self {
+    pub fn new_interior() -> Self {
         let mut page = Page::with_capacity(database::DEFAULT_PAGE_SIZE, PageType::Interior);
         page.put_u8(database::TABLE_LEAF_PAGE);
         page
@@ -44,20 +45,39 @@ impl Page {
         self.children.push(child);
     }
 
-    pub fn fw_position(&mut self, new_position: usize) {
+    pub fn set_fw_position(&mut self, new_position: u16) {
         self.data.fw_position = new_position;
     }
 
-    pub fn bw_position(&mut self, new_position: usize) {
+    pub fn get_fw_position(&self) -> u16 {
+        self.data.fw_position
+    }
+    pub fn set_bw_position(&mut self, new_position: u16) {
         self.data.bw_position = new_position;
+    }
+
+    pub fn get_bw_position(&self) -> u16 {
+        self.data.bw_position
     }
 
     pub fn put_u8a(&mut self, value: &[u8]) {
         self.data.put_u8a(value);
     }
 
+    pub fn put_u8a_bw(&mut self, value: &[u8]) {
+        self.data.put_u8a_bw(value);
+    }
+
+    pub fn put_vec_u8_bw(&mut self, value: Vec<u8>) {
+        self.data.put_vec_u8_bw(value);
+    }
+
     pub fn put_u8(&mut self, value: u8) {
         self.data.put_u8(value);
+    }
+
+    pub fn put_u8_bw(&mut self, value: u8) {
+        self.data.put_u8_bw(value);
     }
 
     pub fn put_u16(&mut self, value: u16) {
@@ -70,6 +90,6 @@ impl Page {
 
     // may panic
     pub fn get_page_nr_last_child(self) -> u32 {
-        self.children[self.children.len()-1].number
+        self.children[self.children.len() - 1].number
     }
 }

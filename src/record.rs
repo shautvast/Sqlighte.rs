@@ -2,8 +2,8 @@ use crate::bytebuffer::ByteBuffer;
 use crate::values::*;
 use crate::varint;
 
-struct Record {
-    rowid: u64,
+pub struct Record {
+    pub rowid: u64,
     //or should it be i64??
     values: Vec<Value>,
 }
@@ -20,14 +20,12 @@ impl Record {
         self.values.push(value);
     }
 
-    fn to_bytes(&self) -> Vec<u8> {
-        let record_length: usize = self.values.iter()
-            .map(|v| v.get_length())
-            .sum();
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let record_length = self.get_length();
         let length_bytes = varint::write(record_length as u64);
         let rowid_bytes = varint::write(self.rowid);
 
-        let mut buffer = ByteBuffer::new(length_bytes.len() + rowid_bytes.len() + record_length);
+        let mut buffer = ByteBuffer::new(length_bytes.len() as u16 + rowid_bytes.len() as u16 + record_length);
         buffer.put_u8v(&length_bytes);
         buffer.put_u8v(&rowid_bytes);
 
@@ -47,6 +45,13 @@ impl Record {
             buffer.put_u8v(&v.data) //copies individual bytes into a buffer...should I avoid copying?
         }
         buffer.data
+    }
+
+    pub fn get_length(&self) -> u16 {
+        let record_length: u16 = self.values.iter()
+            .map(|v| v.get_length())
+            .sum();
+        record_length
     }
 }
 

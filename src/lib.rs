@@ -4,7 +4,7 @@ mod bytebuffer;
 mod values;
 mod varint;
 mod record;
-
+mod builder;
 
 
 #[cfg(test)]

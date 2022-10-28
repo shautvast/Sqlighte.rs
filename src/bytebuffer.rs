@@ -6,14 +6,14 @@ use byteorder::{BigEndian, ByteOrder};
 /// - big endian only
 pub struct ByteBuffer {
     pub data: Vec<u8>,
-    pub fw_position: usize,
-    pub bw_position: usize,
+    pub fw_position: u16,
+    pub bw_position: u16,
 }
 
 impl ByteBuffer {
-    pub fn new(size: usize) -> Self {
+    pub fn new(size: u16) -> Self {
         Self {
-            data: vec![0; size],
+            data: vec![0; size as usize],
             fw_position: 0,
             bw_position: size,
         }
@@ -22,23 +22,31 @@ impl ByteBuffer {
     /// forward put unsigned byte array
     pub fn put_u8a(&mut self, bytes: &[u8]) {
         for v in bytes {
-            self.data[self.fw_position] = *v;
+            self.data[self.fw_position as usize] = *v;
             self.fw_position += 1;
         }
     }
 
     pub fn put_u8v(&mut self, bytes: &Vec<u8>) {
         for v in bytes {
-            self.data[self.fw_position] = *v;
+            self.data[self.fw_position as usize] = *v;
             self.fw_position += 1;
         }
     }
 
     /// backward put unsigned byte array
     pub fn put_u8a_bw(&mut self, bytes: &[u8]) {
-        self.bw_position -= bytes.len();
+        self.bw_position -= bytes.len() as u16;
         for v in bytes {
-            self.data[self.bw_position] = *v;
+            self.data[self.bw_position as usize] = *v;
+            self.bw_position += 1;
+        }
+    }
+
+    pub fn put_vec_u8_bw(&mut self, bytes: Vec<u8>) {
+        self.bw_position -= bytes.len() as u16;
+        for v in bytes {
+            self.data[self.bw_position as usize] = v;
             self.bw_position += 1;
         }
     }
