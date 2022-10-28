@@ -1,4 +1,3 @@
-use crate::bytebuffer::ByteBuffer;
 use crate::values::*;
 use crate::varint;
 
@@ -20,38 +19,42 @@ impl Record {
         self.values.push(value);
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let record_length = self.get_length();
-        let length_bytes = varint::write(record_length as u64);
-        let rowid_bytes = varint::write(self.rowid);
+    /// length of the byte representation
+    pub fn bytes_len(&self) -> u16 {
+        let record_length: u16 = self.values.iter()
+            .map(|v| v.len())
+            .sum();
+        record_length
+    }
+}
 
-        let mut buffer = ByteBuffer::new(length_bytes.len() as u16 + rowid_bytes.len() as u16 + record_length);
-        buffer.put_bytes(&length_bytes);
-        buffer.put_bytes(&rowid_bytes);
+impl Into<Vec<u8>> for Record{
+    fn into(mut self) -> Vec<u8> {
+        let record_length = self.bytes_len();
+        let mut length_bytes = varint::write(record_length as u64);
+        let mut rowid_bytes = varint::write(self.rowid);
+
+        // let mut buffer = Vec::with_capacity(length_bytes.len() + rowid_bytes.len() + record_length);
+        let mut buffer = Vec::new();
+        buffer.append(&mut length_bytes);
+        buffer.append(&mut rowid_bytes);
 
         // 'The initial portion of the payload that does not spill to overflow pages.'
         let length_of_encoded_column_types: usize = self.values.iter()
             .map(|v| v.datatype.len())
             .sum();
-        buffer.put_bytes(&varint::write((length_of_encoded_column_types + 1) as u64));
+        buffer.append(&mut varint::write((length_of_encoded_column_types + 1) as u64));
 
         //write all types
-        for v in self.values.iter() {
-            buffer.put_bytes(&v.datatype)
+        for v in self.values.iter_mut() {
+            buffer.append(&mut v.datatype)
         }
 
         //  write all values
-        for v in self.values.iter() {
-            buffer.put_bytes(&v.data) //copies individual bytes into a buffer...should I avoid copying?
+        for v in self.values.iter_mut() {
+            buffer.append(&mut v.data)
         }
-        buffer.data
-    }
-
-    pub fn get_length(&self) -> u16 {
-        let record_length: u16 = self.values.iter()
-            .map(|v| v.get_length())
-            .sum();
-        record_length
+        buffer
     }
 }
 

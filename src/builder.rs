@@ -21,7 +21,7 @@ impl Builder {
         }
     }
 
-    pub fn add_record(&mut self, record: Record) {
+    pub fn add_record(&mut self, mut record: Record) {
         if self.current_page_is_full(&record) {
             self.finish_current_page();
             self.leaf_pages.push(mem::replace(&mut self.current_page, Page::new_leaf()));
@@ -29,8 +29,9 @@ impl Builder {
         }
 
         self.current_page.key = record.rowid; //clone?
-        self.current_page.put_vec_u8_bw(record.to_bytes());
-        self.current_page.put_u16(self.current_page.get_bw_position() as u16);
+        let bytes: Vec<u8> = record.into();
+        self.current_page.put_bytes_bw(&bytes);
+        self.current_page.put_u16(self.current_page.bw_position as u16);
         self.n_records_on_current_page += 1;
     }
 
@@ -39,26 +40,26 @@ impl Builder {
     }
 
     pub fn build(mut self) -> Database {
-        self.current_page.set_fw_position(page::POSITION_CELL_COUNT);
+        self.current_page.fw_position = page::POSITION_CELL_COUNT;
         self.current_page.put_u16(self.n_records_on_current_page);
 
         if self.n_records_on_current_page > 0 {
-            self.current_page.put_u16(self.current_page.get_bw_position());
+            self.current_page.put_u16(self.current_page.bw_position);
         } else {
-            self.current_page.put_u16(self.current_page.get_bw_position() - 1);
+            self.current_page.put_u16(self.current_page.bw_position - 1);
         }
 
         Database::new(self.schema.unwrap(), self.leaf_pages) //panics is schema is not set
     }
 
     fn current_page_is_full(&self, record: &Record) -> bool {
-        self.current_page.get_bw_position() - record.get_length() <= self.current_page.get_fw_position() + 5
+        self.current_page.bw_position - record.bytes_len() <= self.current_page.fw_position + 5
     }
 
     fn finish_current_page(&mut self) {
-        self.current_page.set_fw_position(page::POSITION_CELL_COUNT);
+        self.current_page.fw_position = page::POSITION_CELL_COUNT;
         self.current_page.put_u16(self.n_records_on_current_page);
-        self.current_page.put_u16(self.current_page.get_bw_position());
+        self.current_page.put_u16(self.current_page.bw_position);
     }
 }
 

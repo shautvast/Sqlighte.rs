@@ -2,7 +2,6 @@
 
 mod page;
 mod database;
-mod bytebuffer;
 mod values;
 mod varint;
 mod record;

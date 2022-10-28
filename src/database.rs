@@ -1,3 +1,7 @@
+use std::io::{BufWriter, Write};
+use std::mem;
+use crate::varint;
+use crate::page;
 use crate::page::Page;
 
 pub struct Database {
@@ -16,9 +20,66 @@ impl Database {
 
 pub struct SchemaRecord {}
 
+pub fn write<W: Write>(database: Database, writer: BufWriter<W>) {
+    let mut current_top_layer = database.leaf_pages;
+    let mut n_pages = current_top_layer.len();
+    while current_top_layer.len() > 1 { // interior page needed?
+        current_top_layer = create_interior_pages(current_top_layer);
+        n_pages += current_top_layer.len();
+    }
+
+    let table_root_page = current_top_layer.get(0); //
+    // writeFromStart(writer, createHeaderPage(n_pages + 1)); // 1 for header page
+    //
+    // recursiveAssignPagenumbers(table_root_page); // 3 extra passes... :(
+    // recursiveSetPageReferences(table_root_page); // don't think combining is possible
+    // recursiveWritePages(channel, table_root_page);
+}
+
+fn create_interior_pages(mut child_pages: Vec<Page>) -> Vec<Page> {
+    let mut interior_pages = Vec::new();
+    let mut interior_page = Page::new_interior();
+    interior_page.key = child_pages.iter().map(|p| p.key).max().unwrap();
+    interior_page.fw_position = page::START_OF_INTERIOR_PAGE;
+    let mut page_index = 0;
+    let children_length = child_pages.len();
+    let mut child_count = 0;
+    let mut last_leaf: Page = Page::new_leaf(); // have to assign :(
+    for mut leaf_page in child_pages {
+        if child_count < children_length - 1 {
+            if interior_page.bw_position <= interior_page.fw_position + 15 { // 15 is somewhat arbitrary
+                interior_page.fw_position = page::START_OF_CONTENT_AREA;
+                interior_page.put_u16(interior_page.bw_position);
+                interior_page.put_bytes(&[0, 0, 0, 0, 0]);
+
+                interior_pages.push(mem::replace(&mut interior_page, Page::new_interior()));
+                interior_page.fw_position = page::START_OF_INTERIOR_PAGE;
+            }
+            create_cell(&mut leaf_page);
+            interior_page.add_child(leaf_page);
+            page_index += 1;
+        } else {
+            last_leaf = leaf_page;
+        }
+    }
+
+    interior_page.fw_position = page::START_OF_CONTENT_AREA;
+    interior_page.put_u16(interior_page.bw_position);
+    interior_page.put_bytes(&[0, 0, 0, 0, 0]);
+    interior_page.add_child(last_leaf);
+    interior_pages.push(interior_page);
+    interior_pages
+}
+
+fn create_cell(page: &mut Page) {
+    let mut cell: Vec<u8> = vec![0, 0, 0, 0]; // not an expensive call right?
+    cell.append(&mut varint::write(page.key));
+    page.put_bytes_bw(&cell);
+    page.put_u16(page.bw_position);
+}
 
 fn write_header(mut rootpage: Page, n_pages: u32) {
-    rootpage.put_u8a(&MAGIC_HEADER);
+    rootpage.put_bytes(&MAGIC_HEADER);
     rootpage.put_u16(DEFAULT_PAGE_SIZE);
     rootpage.put_u8(FILE_FORMAT_WRITE_VERSION);
     rootpage.put_u8(FILE_FORMAT_READ_VERSION);
@@ -38,9 +99,9 @@ fn write_header(mut rootpage: Page, n_pages: u32) {
     rootpage.put_u32(USER_VERSION);
     rootpage.put_u32(VACUUM_MODE_OFF);// True (non-zero) for incremental-vacuum mode. False (zero) otherwise.
     rootpage.put_u32(APP_ID);// Application ID
-    rootpage.put_u8a(&FILLER);// Reserved for expansion. Must be zero.
-    rootpage.put_u8a(&VERSION_VALID_FOR);// The version-valid-for number
-    rootpage.put_u8a(&SQLITE_VERSION);// SQLITE_VERSION_NUMBER
+    rootpage.put_bytes(&FILLER);// Reserved for expansion. Must be zero.
+    rootpage.put_bytes(&VERSION_VALID_FOR);// The version-valid-for number
+    rootpage.put_bytes(&SQLITE_VERSION);// SQLITE_VERSION_NUMBER
     rootpage.put_u8(TABLE_LEAF_PAGE); // leaf table b-tree page for schema
     rootpage.put_u16(NO_FREE_BLOCKS); // zero if there are no freeblocks
     rootpage.put_u16(1); // the number of cells on this page
