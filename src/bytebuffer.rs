@@ -5,7 +5,7 @@ use byteorder::{BigEndian, ByteOrder};
 /// - fixed size
 /// - big endian only
 pub struct ByteBuffer {
-    data: Vec<u8>,
+    pub data: Vec<u8>,
     pub fw_position: usize,
     pub bw_position: usize,
 }
@@ -21,6 +21,13 @@ impl ByteBuffer {
 
     /// forward put unsigned byte array
     pub fn put_u8a(&mut self, bytes: &[u8]) {
+        for v in bytes {
+            self.data[self.fw_position] = *v;
+            self.fw_position += 1;
+        }
+    }
+
+    pub fn put_u8v(&mut self, bytes: &Vec<u8>) {
         for v in bytes {
             self.data[self.fw_position] = *v;
             self.fw_position += 1;
