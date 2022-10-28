@@ -34,8 +34,7 @@ impl Into<Vec<u8>> for Record{
         let mut length_bytes = varint::write(record_length as u64);
         let mut rowid_bytes = varint::write(self.rowid);
 
-        // let mut buffer = Vec::with_capacity(length_bytes.len() + rowid_bytes.len() + record_length);
-        let mut buffer = Vec::new();
+        let mut buffer = Vec::with_capacity(length_bytes.len() + rowid_bytes.len() + record_length as usize);
         buffer.append(&mut length_bytes);
         buffer.append(&mut rowid_bytes);
 
