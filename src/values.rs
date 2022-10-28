@@ -8,7 +8,7 @@ pub struct Value {
 
 
 impl Value {
-    pub fn get_length(&self) -> u16 {
+    pub fn len(&self) -> u16 {
         (self.datatype.len() + self.data.len()) as u16
     }
 }
@@ -32,7 +32,7 @@ pub fn float(value: f64) -> Value {
     Value { datatype: vec![7], data: buffer.to_vec() }
 }
 
-pub fn get_length(value: &Value) -> usize {
+pub fn len(value: &Value) -> usize {
     value.datatype.len() + value.data.len()
 }
 
