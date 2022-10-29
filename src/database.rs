@@ -1,8 +1,10 @@
-use std::io::{BufWriter, Write};
+use std::io::{BufWriter, Error, Write};
 use std::mem;
 use crate::varint;
 use crate::page;
 use crate::page::Page;
+use crate::record::Record;
+use crate::values;
 
 pub struct Database {
     schema: SchemaRecord,
@@ -18,9 +20,37 @@ impl Database {
     }
 }
 
-pub struct SchemaRecord {}
+pub struct SchemaRecord {
+    rowid: u64,
+    table_name: String,
+    root_page: u32,
+    sql: String,
+}
 
-pub fn write<W: Write>(database: Database, writer: BufWriter<W>) {
+impl SchemaRecord {
+    pub fn new(rowid: u64, table_name: &str, root_page: u32, sql: &str) -> Self {
+        Self {
+            rowid,
+            table_name: table_name.to_owned(),
+            root_page,
+            sql: sql.to_owned(),
+        }
+    }
+}
+
+impl Into<Record> for SchemaRecord {
+    fn into(self) -> Record {
+        let mut record = Record::new(self.rowid);
+        record.add_value(values::string("table"));
+        record.add_value(values::string(&self.table_name.to_ascii_lowercase()));
+        record.add_value(values::string(&self.table_name.to_ascii_lowercase()));
+        record.add_value(values::integer(self.root_page as i64));
+        record.add_value(values::string(&self.sql));
+        record
+    }
+}
+
+pub fn write<W: Write>(database: Database, mut writer: BufWriter<W>) -> Result<(), Error> {
     let mut current_top_layer = database.leaf_pages;
     let mut n_pages = current_top_layer.len();
     while current_top_layer.len() > 1 { // interior page needed?
@@ -29,11 +59,33 @@ pub fn write<W: Write>(database: Database, writer: BufWriter<W>) {
     }
 
     let table_root_page = current_top_layer.get(0); //
-    // writeFromStart(writer, createHeaderPage(n_pages + 1)); // 1 for header page
+    writer.write_all(&create_header_page(n_pages + 1, database.schema).data)?; // 1 for header page
     //
     // recursiveAssignPagenumbers(table_root_page); // 3 extra passes... :(
     // recursiveSetPageReferences(table_root_page); // don't think combining is possible
     // recursiveWritePages(channel, table_root_page);
+    Ok(())
+}
+
+fn create_header_page(n_pages: usize, schema: SchemaRecord) -> Page {
+    let mut header_page = Page::new_root();
+    write_header(&mut header_page, n_pages as u32);
+
+    let payload_location_write_location = header_page.fw_position; // mark current position
+
+    let payload_location = write_schema(&mut header_page, schema); //write schema payload from the end
+    header_page.fw_position = payload_location_write_location; // go back to marked position
+    header_page.put_u16(payload_location); //payload start
+    header_page.put_u8(0); // the number of fragmented free bytes within the cell content area
+    header_page.put_u16(payload_location); // first cell
+    return header_page;
+}
+
+fn write_schema(root_page: &mut Page, schema_record: SchemaRecord) -> u16 {
+    let record: Record = schema_record.into();
+    let bytes: Vec<u8> = record.into();
+    root_page.put_bytes_bw(&bytes);
+    root_page.bw_position
 }
 
 fn create_interior_pages(mut child_pages: Vec<Page>) -> Vec<Page> {
@@ -61,6 +113,7 @@ fn create_interior_pages(mut child_pages: Vec<Page>) -> Vec<Page> {
         } else {
             last_leaf = leaf_page;
         }
+        child_count += 1;
     }
 
     interior_page.fw_position = page::START_OF_CONTENT_AREA;
@@ -78,7 +131,7 @@ fn create_cell(page: &mut Page) {
     page.put_u16(page.bw_position);
 }
 
-fn write_header(mut rootpage: Page, n_pages: u32) {
+fn write_header(rootpage: &mut Page, n_pages: u32) {
     rootpage.put_bytes(&MAGIC_HEADER);
     rootpage.put_u16(DEFAULT_PAGE_SIZE);
     rootpage.put_u8(FILE_FORMAT_WRITE_VERSION);
@@ -134,3 +187,5 @@ pub const TABLE_LEAF_PAGE: u8 = 0x0d;
 pub const TABLE_INTERIOR_PAGE: u8 = 0x05;
 const INDEX_LEAF_PAGE: u8 = 0x0a;
 const INDEX_INTERIOR_PAGE: u8 = 0x02;
+
+

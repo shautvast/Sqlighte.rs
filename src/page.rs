@@ -48,6 +48,10 @@ impl Page {
         }
     }
 
+    pub fn new_root() -> Self {
+        Page::with_capacity(database::DEFAULT_PAGE_SIZE, PageType::Leaf)
+    }
+
     pub fn new_leaf() -> Self {
         let mut page = Page::with_capacity(database::DEFAULT_PAGE_SIZE, PageType::Leaf);
         page.put_u8(database::TABLE_LEAF_PAGE);

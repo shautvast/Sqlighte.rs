@@ -8,14 +8,14 @@ pub struct Record {
 }
 
 impl Record {
-    fn new(rowid: u64) -> Self {
+    pub fn new(rowid: u64) -> Self {
         Self {
             rowid,
             values: vec![],
         }
     }
 
-    fn add_value(&mut self, value: Value) {
+    pub fn add_value(&mut self, value: Value) {
         self.values.push(value);
     }
 
