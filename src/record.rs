@@ -1,5 +1,5 @@
 use crate::database::SchemaRecord;
-use crate::values::*;
+use crate::values::{Value, integer, string};
 use crate::varint;
 
 pub struct Record {
@@ -23,7 +23,7 @@ impl Record {
 
     /// length of the byte representation
     pub fn bytes_len(&self) -> u16 {
-        let record_length: u16 = self.values.iter().map(|v| v.len()).sum();
+        let record_length: u16 = self.values.iter().map(Value::len).sum();
         record_length + 1
     }
 }
@@ -31,7 +31,7 @@ impl Record {
 impl From<Record> for Vec<u8> {
     fn from(mut record: Record) -> Vec<u8> {
         let record_length = record.bytes_len();
-        let mut length_bytes = varint::write(record_length as u64);
+        let mut length_bytes = varint::write(u64::from(record_length));
         let mut rowid_bytes = varint::write(record.rowid);
 
         let mut buffer =
@@ -47,13 +47,13 @@ impl From<Record> for Vec<u8> {
         ));
 
         //write all types
-        for v in record.values.iter_mut() {
-            buffer.append(&mut v.datatype)
+        for v in &mut record.values {
+            buffer.append(&mut v.datatype);
         }
 
         //  write all values
-        for v in record.values.iter_mut() {
-            buffer.append(&mut v.data)
+        for v in &mut record.values {
+            buffer.append(&mut v.data);
         }
         buffer
     }
@@ -65,7 +65,7 @@ impl From<SchemaRecord> for Record {
         record.add_value(string("table"));
         record.add_value(string(&s.table_name.to_ascii_lowercase()));
         record.add_value(string(&s.table_name.to_ascii_lowercase()));
-        record.add_value(integer(s.root_page as i64));
+        record.add_value(integer(i64::from(s.root_page)));
         record.add_value(string(&s.sql));
         record
     }

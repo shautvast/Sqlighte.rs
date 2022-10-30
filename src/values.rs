@@ -57,10 +57,10 @@ fn sqlite_integer_to_bytes(value: i64) -> Vec<u8> {
     }
 }
 
-fn i64_to_bytes(n: i64, nbytes: u8) -> Vec<u8> {
+fn i64_to_bytes(value: i64, len: u8) -> Vec<u8> {
     let mut bytes = vec![];
-    for i in 0..nbytes {
-        bytes.push(((n >> ((nbytes - i - 1) * 8)) & 0xFF) as u8);
+    for i in 0..len {
+        bytes.push(((value >> ((len - i - 1) * 8)) & 0xFF) as u8);
     }
 
     bytes
@@ -74,7 +74,7 @@ fn get_int_type(value: i64) -> Vec<u8> {
     } else {
         let length = get_length_of_byte_encoding(value);
         if length < 5 {
-            varint::write(length as u64)
+            varint::write(u64::from(length))
         } else if length < 7 {
             varint::write(5)
         } else {
@@ -87,13 +87,13 @@ fn get_length_of_byte_encoding(value: i64) -> u8 {
     let u = if value < 0 { !value } else { value };
     if u <= 127 {
         1
-    } else if u <= 32767 {
+    } else if u <= 32_767 {
         2
-    } else if u <= 8388607 {
+    } else if u <= 8_388_607 {
         3
-    } else if u <= 2147483647 {
+    } else if u <= 2_147_483_647 {
         4
-    } else if u <= 140737488355327 {
+    } else if u <= 140_737_488_355_327 {
         6
     } else {
         8

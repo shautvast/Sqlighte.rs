@@ -13,7 +13,7 @@ pub enum PageType {
     Other,
 }
 
-/// Represents an SQLite page
+/// Represents an `SQLite` page
 pub struct Page {
     pub data: Vec<u8>,
     pub fw_position: u16,
@@ -116,7 +116,7 @@ impl Page {
 
     pub fn get_u16(&self) -> u16 {
         let position = self.fw_position as usize;
-        ((self.data[position] as u16) << 8) + (self.data[position + 1]) as u16
+        (u16::from(self.data[position]) << 8) + u16::from(self.data[position + 1])
         // does not increase the fw pointerr
     }
 }

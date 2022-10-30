@@ -61,7 +61,7 @@ pub fn write<W: Write>(database: Database, mut writer: BufWriter<W>) -> Result<(
     }
 
     let table_root_page = current_top_layer.get_mut(0).unwrap();
-    writer.write_all(&create_header_page(n_pages + 1, database.schema).data)?; // 1 for header page
+    writer.write_all(&create_header_page((n_pages + 1) as u32, database.schema).data)?; // 1 for header page
 
     assign_pagenumbers(table_root_page, 2);
     set_page_references(table_root_page);
@@ -73,7 +73,7 @@ pub fn write<W: Write>(database: Database, mut writer: BufWriter<W>) -> Result<(
 fn assign_pagenumbers(page: &mut Page, page_counter: u32) {
     page.number = page_counter;
     let mut counter = page_counter;
-    for child in page.children.iter_mut() {
+    for child in &mut page.children {
         counter += 1;
         assign_pagenumbers(child, counter);
     }
@@ -87,34 +87,33 @@ fn set_page_references(page: &mut Page) {
         page.fw_position = page::POSITION_RIGHTMOST_POINTER_LEAFPAGES;
         page.put_u32(page.get_page_nr_last_child());
 
-        let index = 0;
         let before_last = page.children.len() - 1;
         let child_numbers: Vec<u32> = page.children.iter().map(|child| child.number).collect();
 
-        for child_page_number in child_numbers {
+        for (index, child_page_number) in child_numbers.iter().enumerate() {
             if index < before_last {
                 page.fw_position = page::START_OF_INTERIOR_PAGE + (index as u16) * 2;
                 page.fw_position = page.get_u16();
-                page.put_u32(child_page_number);
+                page.put_u32(*child_page_number);
             }
         }
     }
-    for child in page.children.iter_mut() {
+    for child in &mut page.children {
         set_page_references(child);
     }
 }
 
 fn write_pages<W: Write>(writer: &mut BufWriter<W>, page: &Page) -> Result<(), Error> {
     writer.write_all(&page.data)?;
-    for child in page.children.iter() {
+    for child in &page.children {
         write_pages(writer, child)?;
     }
     Ok(())
 }
 
-fn create_header_page(n_pages: usize, schema: SchemaRecord) -> Page {
+fn create_header_page(n_pages: u32, schema: SchemaRecord) -> Page {
     let mut header_page = Page::new_root();
-    write_header(&mut header_page, n_pages as u32);
+    write_header(&mut header_page, n_pages);
 
     let payload_location_write_location = header_page.fw_position; // mark current position
 
