@@ -20,10 +20,11 @@ mod tests {
     fn test_build() -> Result<(), Error> {
         let mut builder = DatabaseBuilder::new();
         builder.schema("foo", "create table foo(bar varchar(10))");
-        let mut record = Record::new(1);
-        record.add_value(values::string("helloworld"));
-        builder.add_record(record);
-
+        for i in 0..100 {
+            let mut record = Record::new(i);
+            record.add_value(values::string("helloworld"));
+            builder.add_record(record);
+        }
         let database: Database = builder.into();
         let file = File::create("foo.db")?;
         let writer = BufWriter::new(file);

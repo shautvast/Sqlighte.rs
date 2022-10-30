@@ -11,6 +11,9 @@ pub fn write(value: u64) -> Vec<u8> {
         }
         result
     } else {
+        if v == 0 {
+            return vec![0];
+        }
         let mut result = Vec::new();
         while v != 0 {
             result.push(((v & 0x7f) | 0x80) as u8);
@@ -38,5 +41,10 @@ mod tests {
     #[test]
     fn test_write1() {
         assert_eq!(vec![1], write(0x01));
+    }
+
+    #[test]
+    fn test_write0() {
+        assert_eq!(vec![0], write(0));
     }
 }

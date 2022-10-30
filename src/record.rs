@@ -9,6 +9,7 @@ pub struct Record {
 }
 
 impl Record {
+    /// Users have to supply the rowid. In the java version this can be done automatically
     pub fn new(rowid: u64) -> Self {
         Self {
             rowid,
@@ -78,5 +79,7 @@ mod tests {
     fn test() {
         let mut record = Record::new(1);
         record.add_value(string("hello"));
+        let bytes: Vec<u8> = record.into();
+        assert_eq!(bytes, vec![7, 1, 2, 23, 104, 101, 108, 108, 111]);
     }
 }
