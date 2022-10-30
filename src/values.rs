@@ -1,11 +1,10 @@
-use byteorder::{BigEndian, ByteOrder};
 use crate::varint;
+use byteorder::{BigEndian, ByteOrder};
 
 pub struct Value {
     pub datatype: Vec<u8>,
     pub data: Vec<u8>,
 }
-
 
 impl Value {
     pub fn len(&self) -> u16 {
@@ -15,21 +14,33 @@ impl Value {
 
 pub fn string(value: &str) -> Value {
     let bytes = value.chars().map(|c| c as u8).collect::<Vec<_>>();
-    Value { datatype: varint::write((bytes.len() * 2 + 13) as u64), data: bytes }
+    Value {
+        datatype: varint::write((bytes.len() * 2 + 13) as u64),
+        data: bytes,
+    }
 }
 
 pub fn blob(value: Vec<u8>) -> Value {
-    Value { datatype: varint::write((value.len() * 2 + 12) as u64), data: value }
+    Value {
+        datatype: varint::write((value.len() * 2 + 12) as u64),
+        data: value,
+    }
 }
 
 pub fn integer(value: i64) -> Value {
-    Value { datatype: get_int_type(value), data: sqlite_integer_to_bytes(value) }
+    Value {
+        datatype: get_int_type(value),
+        data: sqlite_integer_to_bytes(value),
+    }
 }
 
 pub fn float(value: f64) -> Value {
     let mut buffer = [0_u8; 8];
     BigEndian::write_f64(&mut buffer, value);
-    Value { datatype: vec![7], data: buffer.to_vec() }
+    Value {
+        datatype: vec![7],
+        data: buffer.to_vec(),
+    }
 }
 
 pub fn len(value: &Value) -> usize {
@@ -73,12 +84,7 @@ fn get_int_type(value: i64) -> Vec<u8> {
 }
 
 fn get_length_of_byte_encoding(value: i64) -> u8 {
-    let u =
-        if value < 0 {
-            !value
-        } else {
-            value
-        };
+    let u = if value < 0 { !value } else { value };
     if u <= 127 {
         1
     } else if u <= 32767 {
@@ -96,7 +102,6 @@ fn get_length_of_byte_encoding(value: i64) -> u8 {
 
 #[cfg(test)]
 mod tests {
-    use crate::values::Value;
     use super::*;
 
     #[test]

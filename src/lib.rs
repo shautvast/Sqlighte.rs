@@ -1,18 +1,33 @@
 #![allow(dead_code)]
 
-mod page;
+mod builder;
 mod database;
+mod page;
+mod record;
 mod values;
 mod varint;
-mod record;
-mod builder;
-
 
 #[cfg(test)]
 mod tests {
+    use crate::builder::DatabaseBuilder;
+    use crate::database::{write, Database};
+    use crate::record::Record;
+    use crate::values;
+    use std::fs::File;
+    use std::io::{BufWriter, Error};
+
     #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
+    fn test_build() -> Result<(), Error> {
+        let mut builder = DatabaseBuilder::new();
+        builder.schema("foo", "create table foo(bar varchar(10))");
+        let mut record = Record::new(1);
+        record.add_value(values::string("helloworld"));
+        builder.add_record(record);
+
+        let database: Database = builder.into();
+        let file = File::create("foo.db")?;
+        let writer = BufWriter::new(file);
+        write(database, writer)?;
+        Ok(())
     }
 }

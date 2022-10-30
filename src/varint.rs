@@ -29,13 +29,14 @@ mod tests {
 
     #[test]
     fn test() {
-        assert_eq!(vec![0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF], write(0xffffffffffffffff));
+        assert_eq!(
+            vec![0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF],
+            write(0xffffffffffffffff)
+        );
     }
 
     #[test]
     fn test_write1() {
-        let a:i16 = -1;
-        println!("{}", a as u16);
         assert_eq!(vec![1], write(0x01));
     }
 }

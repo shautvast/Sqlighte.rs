@@ -1,10 +1,10 @@
-use std::io::{BufWriter, Error, Write};
-use std::mem;
-use crate::varint;
+use crate::builder::DatabaseBuilder;
 use crate::page;
 use crate::page::{Page, PageType};
 use crate::record::Record;
-use crate::values;
+use crate::varint;
+use std::io::{BufWriter, Error, Write};
+use std::mem;
 
 pub struct Database {
     schema: SchemaRecord,
@@ -13,18 +13,31 @@ pub struct Database {
 
 impl Database {
     pub fn new(schema: SchemaRecord, leaf_pages: Vec<Page>) -> Self {
-        Self {
-            schema,
-            leaf_pages,
+        Self { schema, leaf_pages }
+    }
+}
+
+impl From<DatabaseBuilder> for Database {
+    fn from(mut dbb: DatabaseBuilder) -> Self {
+        dbb.current_page.fw_position = page::POSITION_CELL_COUNT;
+        dbb.current_page.put_u16(dbb.n_records_on_current_page);
+
+        if dbb.n_records_on_current_page > 0 {
+            dbb.current_page.put_u16(dbb.current_page.bw_position);
+        } else {
+            dbb.current_page.put_u16(dbb.current_page.bw_position - 1);
         }
+
+        dbb.leaf_pages.push(dbb.current_page);
+        Database::new(dbb.schema.unwrap(), dbb.leaf_pages) //panics is schema is not set
     }
 }
 
 pub struct SchemaRecord {
-    rowid: u64,
-    table_name: String,
-    root_page: u32,
-    sql: String,
+    pub rowid: u64,
+    pub table_name: String,
+    pub root_page: u32,
+    pub sql: String,
 }
 
 impl SchemaRecord {
@@ -38,22 +51,11 @@ impl SchemaRecord {
     }
 }
 
-impl Into<Record> for SchemaRecord {
-    fn into(self) -> Record {
-        let mut record = Record::new(self.rowid);
-        record.add_value(values::string("table"));
-        record.add_value(values::string(&self.table_name.to_ascii_lowercase()));
-        record.add_value(values::string(&self.table_name.to_ascii_lowercase()));
-        record.add_value(values::integer(self.root_page as i64));
-        record.add_value(values::string(&self.sql));
-        record
-    }
-}
-
 pub fn write<W: Write>(database: Database, mut writer: BufWriter<W>) -> Result<(), Error> {
     let mut current_top_layer = database.leaf_pages;
     let mut n_pages = current_top_layer.len();
-    while current_top_layer.len() > 1 { // db needs interior pages?
+    while current_top_layer.len() > 1 {
+        // db needs interior pages?
         current_top_layer = create_interior_pages(current_top_layer);
         n_pages += current_top_layer.len();
     }
@@ -103,7 +105,7 @@ fn set_page_references(page: &mut Page) {
 }
 
 fn write_pages<W: Write>(writer: &mut BufWriter<W>, page: &Page) -> Result<(), Error> {
-    writer.write(&page.data)?;
+    writer.write_all(&page.data)?;
     for child in page.children.iter() {
         write_pages(writer, child)?;
     }
@@ -121,7 +123,7 @@ fn create_header_page(n_pages: usize, schema: SchemaRecord) -> Page {
     header_page.put_u16(payload_location); //payload start
     header_page.put_u8(0); // the number of fragmented free bytes within the cell content area
     header_page.put_u16(payload_location); // first cell
-    return header_page;
+    header_page
 }
 
 fn write_schema(root_page: &mut Page, schema_record: SchemaRecord) -> u16 {
@@ -131,18 +133,17 @@ fn write_schema(root_page: &mut Page, schema_record: SchemaRecord) -> u16 {
     root_page.bw_position
 }
 
-fn create_interior_pages(mut child_pages: Vec<Page>) -> Vec<Page> {
+fn create_interior_pages(child_pages: Vec<Page>) -> Vec<Page> {
     let mut interior_pages = Vec::new();
     let mut interior_page = Page::new_interior();
     interior_page.key = child_pages.iter().map(|p| p.key).max().unwrap();
     interior_page.fw_position = page::START_OF_INTERIOR_PAGE;
-    let mut page_index = 0;
     let children_length = child_pages.len();
-    let mut child_count = 0;
     let mut last_leaf: Page = Page::new_leaf(); // have to assign :(
-    for mut leaf_page in child_pages {
+    for (child_count, mut leaf_page) in child_pages.into_iter().enumerate() {
         if child_count < children_length - 1 {
-            if interior_page.bw_position <= interior_page.fw_position + 15 { // 15 is somewhat arbitrary
+            if interior_page.bw_position <= interior_page.fw_position + 15 {
+                // 15 is somewhat arbitrary
                 interior_page.fw_position = page::START_OF_CONTENT_AREA;
                 interior_page.put_u16(interior_page.bw_position);
                 interior_page.put_bytes(&[0, 0, 0, 0, 0]);
@@ -152,11 +153,9 @@ fn create_interior_pages(mut child_pages: Vec<Page>) -> Vec<Page> {
             }
             create_cell(&mut leaf_page);
             interior_page.add_child(leaf_page);
-            page_index += 1;
         } else {
             last_leaf = leaf_page;
         }
-        child_count += 1;
     }
 
     interior_page.fw_position = page::START_OF_CONTENT_AREA;
@@ -184,8 +183,8 @@ fn write_header(rootpage: &mut Page, n_pages: u32) {
     rootpage.put_u8(MIN_EMBED_PAYLOAD_FRACTION);
     rootpage.put_u8(LEAF_PAYLOAD_FRACTION);
     rootpage.put_u32(FILECHANGE_COUNTER);
-    rootpage.put_u32(n_pages);// file size in pages
-    rootpage.put_u32(FREELIST_TRUNK_PAGE_HUMBER);// Page number of the first freelist trunk page.
+    rootpage.put_u32(n_pages); // file size in pages
+    rootpage.put_u32(FREELIST_TRUNK_PAGE_HUMBER); // Page number of the first freelist trunk page.
     rootpage.put_u32(TOTAL_N_FREELIST_PAGES);
     rootpage.put_u32(SCHEMA_COOKIE);
     rootpage.put_u32(SQLITE_SCHEMAVERSION);
@@ -193,17 +192,19 @@ fn write_header(rootpage: &mut Page, n_pages: u32) {
     rootpage.put_u32(LARGEST_ROOT_BTREE_PAGE);
     rootpage.put_u32(ENCODING_UTF8);
     rootpage.put_u32(USER_VERSION);
-    rootpage.put_u32(VACUUM_MODE_OFF);// True (non-zero) for incremental-vacuum mode. False (zero) otherwise.
-    rootpage.put_u32(APP_ID);// Application ID
-    rootpage.put_bytes(&FILLER);// Reserved for expansion. Must be zero.
-    rootpage.put_bytes(&VERSION_VALID_FOR);// The version-valid-for number
-    rootpage.put_bytes(&SQLITE_VERSION);// SQLITE_VERSION_NUMBER
+    rootpage.put_u32(VACUUM_MODE_OFF); // True (non-zero) for incremental-vacuum mode. False (zero) otherwise.
+    rootpage.put_u32(APP_ID); // Application ID
+    rootpage.put_bytes(&FILLER); // Reserved for expansion. Must be zero.
+    rootpage.put_bytes(&VERSION_VALID_FOR); // The version-valid-for number
+    rootpage.put_bytes(&SQLITE_VERSION); // SQLITE_VERSION_NUMBER
     rootpage.put_u8(TABLE_LEAF_PAGE); // leaf table b-tree page for schema
     rootpage.put_u16(NO_FREE_BLOCKS); // zero if there are no freeblocks
     rootpage.put_u16(1); // the number of cells on this page
 }
 
-const MAGIC_HEADER: [u8; 16] = [0x53, 0x51, 0x4c, 0x69, 0x74, 0x65, 0x20, 0x66, 0x6f, 0x72, 0x6d, 0x61, 0x74, 0x20, 0x33, 0x00];
+const MAGIC_HEADER: [u8; 16] = [
+    0x53, 0x51, 0x4c, 0x69, 0x74, 0x65, 0x20, 0x66, 0x6f, 0x72, 0x6d, 0x61, 0x74, 0x20, 0x33, 0x00,
+];
 pub const DEFAULT_PAGE_SIZE: u16 = 4096;
 const FILE_FORMAT_WRITE_VERSION: u8 = 1;
 const FILE_FORMAT_READ_VERSION: u8 = 1;
@@ -222,7 +223,10 @@ const ENCODING_UTF8: u32 = 1;
 const USER_VERSION: u32 = 0;
 const VACUUM_MODE_OFF: u32 = 0;
 const APP_ID: u32 = 0;
-const FILLER: [u8; 20] = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+const FILLER: [u8; 20] = [
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+];
 const VERSION_VALID_FOR: [u8; 4] = [0, 0, 0x03, 250];
 const SQLITE_VERSION: [u8; 4] = [0x00, 0x2e, 0x5F, 0x1A];
 const NO_FREE_BLOCKS: u16 = 0;
@@ -230,5 +234,3 @@ pub const TABLE_LEAF_PAGE: u8 = 0x0d;
 pub const TABLE_INTERIOR_PAGE: u8 = 0x05;
 const INDEX_LEAF_PAGE: u8 = 0x0a;
 const INDEX_INTERIOR_PAGE: u8 = 0x02;
-
-

@@ -1,3 +1,4 @@
+use crate::database::SchemaRecord;
 use crate::values::*;
 use crate::varint;
 
@@ -21,39 +22,51 @@ impl Record {
 
     /// length of the byte representation
     pub fn bytes_len(&self) -> u16 {
-        let record_length: u16 = self.values.iter()
-            .map(|v| v.len())
-            .sum();
-        record_length+1
+        let record_length: u16 = self.values.iter().map(|v| v.len()).sum();
+        record_length + 1
     }
 }
 
-impl Into<Vec<u8>> for Record{
-    fn into(mut self) -> Vec<u8> {
-        let record_length = self.bytes_len();
+impl From<Record> for Vec<u8> {
+    fn from(mut record: Record) -> Vec<u8> {
+        let record_length = record.bytes_len();
         let mut length_bytes = varint::write(record_length as u64);
-        let mut rowid_bytes = varint::write(self.rowid);
+        let mut rowid_bytes = varint::write(record.rowid);
 
-        let mut buffer = Vec::with_capacity(length_bytes.len() + rowid_bytes.len() + record_length as usize);
+        let mut buffer =
+            Vec::with_capacity(length_bytes.len() + rowid_bytes.len() + record_length as usize);
         buffer.append(&mut length_bytes);
         buffer.append(&mut rowid_bytes);
 
         // 'The initial portion of the payload that does not spill to overflow pages.'
-        let length_of_encoded_column_types: usize = self.values.iter()
-            .map(|v| v.datatype.len())
-            .sum();
-        buffer.append(&mut varint::write((length_of_encoded_column_types + 1) as u64));
+        let length_of_encoded_column_types: usize =
+            record.values.iter().map(|v| v.datatype.len()).sum();
+        buffer.append(&mut varint::write(
+            (length_of_encoded_column_types + 1) as u64,
+        ));
 
         //write all types
-        for v in self.values.iter_mut() {
+        for v in record.values.iter_mut() {
             buffer.append(&mut v.datatype)
         }
 
         //  write all values
-        for v in self.values.iter_mut() {
+        for v in record.values.iter_mut() {
             buffer.append(&mut v.data)
         }
         buffer
+    }
+}
+
+impl From<SchemaRecord> for Record {
+    fn from(s: SchemaRecord) -> Self {
+        let mut record = Record::new(s.rowid);
+        record.add_value(string("table"));
+        record.add_value(string(&s.table_name.to_ascii_lowercase()));
+        record.add_value(string(&s.table_name.to_ascii_lowercase()));
+        record.add_value(integer(s.root_page as i64));
+        record.add_value(string(&s.sql));
+        record
     }
 }
 

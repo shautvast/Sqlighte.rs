@@ -1,5 +1,5 @@
-use byteorder::{BigEndian, ByteOrder};
 use crate::database;
+use byteorder::{BigEndian, ByteOrder};
 
 pub const POSITION_CELL_COUNT: u16 = 3;
 pub const START_OF_CONTENT_AREA: u16 = 5;
@@ -116,7 +116,7 @@ impl Page {
 
     pub fn get_u16(&self) -> u16 {
         let position = self.fw_position as usize;
-        (self.data[position] as u16) << 8 + self.data[position + 1]
+        ((self.data[position] as u16) << 8) + (self.data[position + 1]) as u16
         // does not increase the fw pointerr
     }
 }
