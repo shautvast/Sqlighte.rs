@@ -24,7 +24,7 @@ impl Record {
         let record_length: u16 = self.values.iter()
             .map(|v| v.len())
             .sum();
-        record_length
+        record_length+1
     }
 }
 
