@@ -10,11 +10,16 @@ pub struct Builder {
     schema: Option<SchemaRecord>,
 }
 
+fn new_page() -> Page {
+    let mut page = Page::new_leaf();
+    page.fw_position = 8;
+    page
+}
 
 impl Builder {
     pub fn new() -> Self {
         Self {
-            current_page: Page::new_leaf(),
+            current_page: new_page(),
             n_records_on_current_page: 0,
             leaf_pages: Vec::new(),
             schema: None,
@@ -24,7 +29,7 @@ impl Builder {
     pub fn add_record(&mut self, record: Record) {
         if self.current_page_is_full(&record) {
             self.finish_current_page();
-            self.leaf_pages.push(mem::replace(&mut self.current_page, Page::new_leaf()));
+            self.leaf_pages.push(mem::replace(&mut self.current_page, new_page()));
             self.n_records_on_current_page = 0;
         }
 
@@ -61,6 +66,7 @@ impl Into<Database> for Builder {
             self.current_page.put_u16(self.current_page.bw_position - 1);
         }
 
+        self.leaf_pages.push(self.current_page);
         Database::new(self.schema.unwrap(), self.leaf_pages) //panics is schema is not set
     }
 }
@@ -74,7 +80,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_build() -> Result<(), Error>{
+    fn test_build() -> Result<(), Error> {
         let mut builder = Builder::new();
         builder.schema(
             "foo",
@@ -85,7 +91,7 @@ mod tests {
         builder.add_record(record);
 
         let database: Database = builder.into();
-        let file = File::create("foo.txt")?;
+        let file = File::create("foo.db")?;
         let writer = BufWriter::new(file);
         write(database, writer)?;
         Ok(())

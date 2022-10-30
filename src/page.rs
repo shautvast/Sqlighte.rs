@@ -4,12 +4,13 @@ use crate::database;
 pub const POSITION_CELL_COUNT: u16 = 3;
 pub const START_OF_CONTENT_AREA: u16 = 5;
 pub const START_OF_INTERIOR_PAGE: u16 = 12;
+pub const POSITION_RIGHTMOST_POINTER_LEAFPAGES: u16 = 8;
 
 pub enum PageType {
     Leaf,
     Interior,
     Root,
-    Other
+    Other,
 }
 
 /// Represents an SQLite page
@@ -18,9 +19,9 @@ pub struct Page {
     pub fw_position: u16,
     pub bw_position: u16,
     pub key: u64,
-    children: Vec<Page>,
-    number: u32,
-    page_type: PageType,
+    pub children: Vec<Page>,
+    pub number: u32,
+    pub page_type: PageType,
 }
 
 impl Page {
@@ -36,7 +37,7 @@ impl Page {
         }
     }
 
-    fn default(size: usize) -> Self{
+    fn default(size: usize) -> Self {
         Self {
             data: vec![0; size],
             fw_position: 0,
@@ -81,6 +82,7 @@ impl Page {
             self.data[self.bw_position as usize] = *v;
             self.bw_position += 1;
         }
+        self.bw_position -= bytes.len() as u16;
     }
 
     pub fn put_u8(&mut self, value: u8) {
@@ -108,8 +110,14 @@ impl Page {
     }
 
     // may panic
-    pub fn get_page_nr_last_child(self) -> u32 {
+    pub fn get_page_nr_last_child(&self) -> u32 {
         self.children[self.children.len() - 1].number
+    }
+
+    pub fn get_u16(&self) -> u16 {
+        let position = self.fw_position as usize;
+        (self.data[position] as u16) << 8 + self.data[position + 1]
+        // does not increase the fw pointerr
     }
 }
 

@@ -2,7 +2,7 @@ use std::io::{BufWriter, Error, Write};
 use std::mem;
 use crate::varint;
 use crate::page;
-use crate::page::Page;
+use crate::page::{Page, PageType};
 use crate::record::Record;
 use crate::values;
 
@@ -53,17 +53,60 @@ impl Into<Record> for SchemaRecord {
 pub fn write<W: Write>(database: Database, mut writer: BufWriter<W>) -> Result<(), Error> {
     let mut current_top_layer = database.leaf_pages;
     let mut n_pages = current_top_layer.len();
-    while current_top_layer.len() > 1 { // interior page needed?
+    while current_top_layer.len() > 1 { // db needs interior pages?
         current_top_layer = create_interior_pages(current_top_layer);
         n_pages += current_top_layer.len();
     }
 
-    let table_root_page = current_top_layer.get(0); //
+    let table_root_page = current_top_layer.get_mut(0).unwrap();
     writer.write_all(&create_header_page(n_pages + 1, database.schema).data)?; // 1 for header page
-    //
-    // recursiveAssignPagenumbers(table_root_page); // 3 extra passes... :(
-    // recursiveSetPageReferences(table_root_page); // don't think combining is possible
-    // recursiveWritePages(channel, table_root_page);
+
+    assign_pagenumbers(table_root_page, 2);
+    set_page_references(table_root_page);
+    write_pages(&mut writer, table_root_page)?;
+
+    Ok(())
+}
+
+fn assign_pagenumbers(page: &mut Page, page_counter: u32) {
+    page.number = page_counter;
+    let mut counter = page_counter;
+    for child in page.children.iter_mut() {
+        counter += 1;
+        assign_pagenumbers(child, counter);
+    }
+}
+
+fn set_page_references(page: &mut Page) {
+    if let PageType::Interior = page.page_type {
+        page.fw_position = page::POSITION_CELL_COUNT;
+        page.put_u16((page.children.len() - 1) as u16);
+
+        page.fw_position = page::POSITION_RIGHTMOST_POINTER_LEAFPAGES;
+        page.put_u32(page.get_page_nr_last_child());
+
+        let index = 0;
+        let before_last = page.children.len() - 1;
+        let child_numbers: Vec<u32> = page.children.iter().map(|child| child.number).collect();
+
+        for child_page_number in child_numbers {
+            if index < before_last {
+                page.fw_position = page::START_OF_INTERIOR_PAGE + (index as u16) * 2;
+                page.fw_position = page.get_u16();
+                page.put_u32(child_page_number);
+            }
+        }
+    }
+    for child in page.children.iter_mut() {
+        set_page_references(child);
+    }
+}
+
+fn write_pages<W: Write>(writer: &mut BufWriter<W>, page: &Page) -> Result<(), Error> {
+    writer.write(&page.data)?;
+    for child in page.children.iter() {
+        write_pages(writer, child)?;
+    }
     Ok(())
 }
 
