@@ -29,7 +29,7 @@ impl From<DatabaseBuilder> for Database {
         }
 
         dbb.leaf_pages.push(dbb.current_page);
-        Database::new(dbb.schema.unwrap(), dbb.leaf_pages) //panics is schema is not set
+        Database::new(dbb.schema.unwrap_or_default(), dbb.leaf_pages)
     }
 }
 
@@ -42,6 +42,7 @@ pub fn write_sqlite<W: Write>(database: Database, mut writer: BufWriter<W>) -> R
         n_pages += current_top_layer.len();
     }
 
+    // assert(won't panic)
     let table_root_page = current_top_layer.get_mut(0).unwrap();
     writer.write_all(&create_header_page((n_pages + 1) as u32, database.schema).data)?; // 1 for header page
 
@@ -101,7 +102,7 @@ fn write_schema(root_page: &mut Page, schema_record: SchemaRecord) -> u16 {
 fn create_interior_pages(child_pages: Vec<Page>) -> Vec<Page> {
     let mut interior_pages = Vec::new();
     let mut interior_page = Page::new_interior();
-    interior_page.key = child_pages.iter().map(|p| p.key).max().unwrap();
+    interior_page.key = child_pages.iter().map(|p| p.key).max().unwrap_or(0);
     interior_page.fw_position = page::START_OF_INTERIOR_PAGE;
     let children_length = child_pages.len();
     let mut last_leaf: Page = Page::new_leaf(); // have to assign :(
@@ -172,6 +173,17 @@ pub struct SchemaRecord {
     pub table_name: String,
     pub root_page: u32,
     pub sql: String,
+}
+
+impl Default for SchemaRecord {
+    fn default() -> Self {
+        Self {
+            rowid: 0,
+            table_name: "".to_owned(),
+            root_page: 3,
+            sql: "".to_owned(),
+        }
+    }
 }
 
 impl SchemaRecord {
