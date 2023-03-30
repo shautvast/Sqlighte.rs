@@ -1,9 +1,8 @@
 # Sqlighte.Rs
 
 * rust version of https://gitlab.com/sander-hautvast/sqlighter
-* still work in progress
 
-Creating a database will be as simple as: 
+Creating a database is as simple as: 
 ```rust
 fn test_build() -> Result<(), Error> {
         let mut builder = Builder::new();
@@ -18,7 +17,7 @@ fn test_build() -> Result<(), Error> {
         let database: Database = builder.into();
         let file = File::create("foo.db")?;
         let writer = BufWriter::new(file);
-        write(database, writer)?;
+        write_sqlite(database, writer)?;
         Ok(())
     }
 ```

@@ -10,7 +10,7 @@ mod varint;
 #[cfg(test)]
 mod tests {
     use crate::builder::DatabaseBuilder;
-    use crate::database::{write, Database};
+    use crate::database::{write_sqlite, Database};
     use crate::record::Record;
     use crate::values;
     use std::fs::File;
@@ -28,7 +28,7 @@ mod tests {
         let database: Database = builder.into();
         let file = File::create("foo.db")?;
         let writer = BufWriter::new(file);
-        write(database, writer)?;
+        write_sqlite(database, writer)?;
         Ok(())
     }
 }

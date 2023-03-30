@@ -33,7 +33,7 @@ impl From<DatabaseBuilder> for Database {
     }
 }
 
-pub fn write<W: Write>(database: Database, mut writer: BufWriter<W>) -> Result<(), Error> {
+pub fn write_sqlite<W: Write>(database: Database, mut writer: BufWriter<W>) -> Result<(), Error> {
     let mut current_top_layer = database.leaf_pages;
     let mut n_pages = current_top_layer.len();
     while current_top_layer.len() > 1 {
@@ -48,7 +48,11 @@ pub fn write<W: Write>(database: Database, mut writer: BufWriter<W>) -> Result<(
     set_childrefs_write(table_root_page, &mut writer, 3)
 }
 
-fn set_childrefs_write<W: Write>(page: &mut Page, writer: &mut BufWriter<W>, mut page_counter: u32) -> Result<(), Error> {
+fn set_childrefs_write<W: Write>(
+    page: &mut Page,
+    writer: &mut BufWriter<W>,
+    mut page_counter: u32,
+) -> Result<(), Error> {
     if let PageType::Interior = page.page_type {
         page.fw_position = page::POSITION_CELL_COUNT;
         page.put_u16((page.children.len() - 1) as u16);
@@ -67,7 +71,7 @@ fn set_childrefs_write<W: Write>(page: &mut Page, writer: &mut BufWriter<W>, mut
 
     writer.write_all(&page.data)?;
 
-    for child in page.children.iter_mut() {
+    for child in &mut page.children {
         set_childrefs_write(child, writer, page_counter)?;
     }
     Ok(())
@@ -213,4 +217,3 @@ pub const TABLE_LEAF_PAGE: u8 = 0x0d;
 pub const TABLE_INTERIOR_PAGE: u8 = 0x05;
 const INDEX_LEAF_PAGE: u8 = 0x0a;
 const INDEX_INTERIOR_PAGE: u8 = 0x02;
-

@@ -37,8 +37,7 @@ impl DatabaseBuilder {
         self.current_page.key = record.rowid; //clone?
         let bytes: Vec<u8> = record.into();
         self.current_page.put_bytes_bw(&bytes);
-        self.current_page
-            .put_u16(self.current_page.bw_position as u16);
+        self.current_page.put_u16(self.current_page.bw_position);
         self.n_records_on_current_page += 1;
     }
 

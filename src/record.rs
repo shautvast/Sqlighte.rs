@@ -1,5 +1,5 @@
 use crate::database::SchemaRecord;
-use crate::values::{Value, integer, string};
+use crate::values::{integer, string, Value};
 use crate::varint;
 
 pub struct Record {
