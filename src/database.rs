@@ -33,24 +33,6 @@ impl From<DatabaseBuilder> for Database {
     }
 }
 
-pub struct SchemaRecord {
-    pub rowid: u64,
-    pub table_name: String,
-    pub root_page: u32,
-    pub sql: String,
-}
-
-impl SchemaRecord {
-    pub fn new(rowid: u64, table_name: &str, root_page: u32, sql: &str) -> Self {
-        Self {
-            rowid,
-            table_name: table_name.to_owned(),
-            root_page,
-            sql: sql.to_owned(),
-        }
-    }
-}
-
 pub fn write<W: Write>(database: Database, mut writer: BufWriter<W>) -> Result<(), Error> {
     let mut current_top_layer = database.leaf_pages;
     let mut n_pages = current_top_layer.len();
@@ -63,50 +45,30 @@ pub fn write<W: Write>(database: Database, mut writer: BufWriter<W>) -> Result<(
     let table_root_page = current_top_layer.get_mut(0).unwrap();
     writer.write_all(&create_header_page((n_pages + 1) as u32, database.schema).data)?; // 1 for header page
 
-    assign_pagenumbers(table_root_page, 2);
-    set_page_references(table_root_page);
-    write_pages(&mut writer, table_root_page)?;
-
-    Ok(())
+    set_childrefs_write(table_root_page, &mut writer, 3)
 }
 
-fn assign_pagenumbers(page: &mut Page, page_counter: u32) {
-    page.number = page_counter;
-    let mut counter = page_counter;
-    for child in &mut page.children {
-        counter += 1;
-        assign_pagenumbers(child, counter);
-    }
-}
-
-fn set_page_references(page: &mut Page) {
+fn set_childrefs_write<W: Write>(page: &mut Page, writer: &mut BufWriter<W>, mut page_counter: u32) -> Result<(), Error> {
     if let PageType::Interior = page.page_type {
         page.fw_position = page::POSITION_CELL_COUNT;
         page.put_u16((page.children.len() - 1) as u16);
 
-        page.fw_position = page::POSITION_RIGHTMOST_POINTER_LEAFPAGES;
-        page.put_u32(page.get_page_nr_last_child());
-
-        let before_last = page.children.len() - 1;
-        let child_numbers: Vec<u32> = page.children.iter().map(|child| child.number).collect();
-
-        for (index, child_page_number) in child_numbers.iter().enumerate() {
-            if index < before_last {
-                page.fw_position = page::START_OF_INTERIOR_PAGE + (index as u16) * 2;
-                page.fw_position = page.get_u16();
-                page.put_u32(*child_page_number);
-            }
+        for index in 0..page.children.len() - 1 {
+            page.fw_position = page::START_OF_INTERIOR_PAGE + (index as u16) * 2;
+            page.fw_position = page.get_u16();
+            page.put_u32(page_counter);
+            page_counter += 1;
         }
-    }
-    for child in &mut page.children {
-        set_page_references(child);
-    }
-}
 
-fn write_pages<W: Write>(writer: &mut BufWriter<W>, page: &Page) -> Result<(), Error> {
+        page.fw_position = page::POSITION_RIGHTMOST_POINTER_LEAFPAGES;
+        page.put_u32(page_counter);
+        page_counter += 1;
+    }
+
     writer.write_all(&page.data)?;
-    for child in &page.children {
-        write_pages(writer, child)?;
+
+    for child in page.children.iter_mut() {
+        set_childrefs_write(child, writer, page_counter)?;
     }
     Ok(())
 }
@@ -139,18 +101,17 @@ fn create_interior_pages(child_pages: Vec<Page>) -> Vec<Page> {
     interior_page.fw_position = page::START_OF_INTERIOR_PAGE;
     let children_length = child_pages.len();
     let mut last_leaf: Page = Page::new_leaf(); // have to assign :(
-    for (child_count, mut leaf_page) in child_pages.into_iter().enumerate() {
+    for (child_count, leaf_page) in child_pages.into_iter().enumerate() {
         if child_count < children_length - 1 {
             if interior_page.bw_position <= interior_page.fw_position + 15 {
-                // 15 is somewhat arbitrary
+                // 15 is somewhat arbitrary, but safe
                 interior_page.fw_position = page::START_OF_CONTENT_AREA;
                 interior_page.put_u16(interior_page.bw_position);
-                interior_page.put_bytes(&[0, 0, 0, 0, 0]);
-
+                interior_page.fw_position += 5;
                 interior_pages.push(mem::replace(&mut interior_page, Page::new_interior()));
                 interior_page.fw_position = page::START_OF_INTERIOR_PAGE;
             }
-            create_cell(&mut leaf_page);
+            create_cell(&mut interior_page, &leaf_page);
             interior_page.add_child(leaf_page);
         } else {
             last_leaf = leaf_page;
@@ -159,17 +120,18 @@ fn create_interior_pages(child_pages: Vec<Page>) -> Vec<Page> {
 
     interior_page.fw_position = page::START_OF_CONTENT_AREA;
     interior_page.put_u16(interior_page.bw_position);
-    interior_page.put_bytes(&[0, 0, 0, 0, 0]);
+    interior_page.fw_position += 5;
     interior_page.add_child(last_leaf);
     interior_pages.push(interior_page);
     interior_pages
 }
 
-fn create_cell(page: &mut Page) {
-    let mut cell: Vec<u8> = vec![0, 0, 0, 0]; // not an expensive call right?
-    cell.append(&mut varint::write(page.key));
-    page.put_bytes_bw(&cell);
-    page.put_u16(page.bw_position);
+fn create_cell(interior_page: &mut Page, child_page: &Page) {
+    let mut cell: Vec<u8> = vec![0; 5];
+    cell.append(&mut varint::write(child_page.key));
+
+    interior_page.put_bytes_bw(&cell);
+    interior_page.put_u16(interior_page.bw_position);
 }
 
 fn write_header(rootpage: &mut Page, n_pages: u32) {
@@ -199,6 +161,24 @@ fn write_header(rootpage: &mut Page, n_pages: u32) {
     rootpage.put_u8(TABLE_LEAF_PAGE); // leaf table b-tree page for schema
     rootpage.put_u16(NO_FREE_BLOCKS); // zero if there are no freeblocks
     rootpage.put_u16(1); // the number of cells on this page
+}
+
+pub struct SchemaRecord {
+    pub rowid: u64,
+    pub table_name: String,
+    pub root_page: u32,
+    pub sql: String,
+}
+
+impl SchemaRecord {
+    pub fn new(rowid: u64, table_name: &str, root_page: u32, sql: &str) -> Self {
+        Self {
+            rowid,
+            table_name: table_name.to_owned(),
+            root_page,
+            sql: sql.to_owned(),
+        }
+    }
 }
 
 const MAGIC_HEADER: [u8; 16] = [
@@ -233,3 +213,4 @@ pub const TABLE_LEAF_PAGE: u8 = 0x0d;
 pub const TABLE_INTERIOR_PAGE: u8 = 0x05;
 const INDEX_LEAF_PAGE: u8 = 0x0a;
 const INDEX_INTERIOR_PAGE: u8 = 0x02;
+

@@ -20,7 +20,7 @@ mod tests {
     fn test_build() -> Result<(), Error> {
         let mut builder = DatabaseBuilder::new();
         builder.schema("foo", "create table foo(bar varchar(10))");
-        for i in 0..100 {
+        for i in 0..10000 {
             let mut record = Record::new(i);
             record.add_value(values::string("helloworld"));
             builder.add_record(record);

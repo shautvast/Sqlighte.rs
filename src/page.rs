@@ -20,7 +20,6 @@ pub struct Page {
     pub bw_position: u16,
     pub key: u64,
     pub children: Vec<Page>,
-    pub number: u32,
     pub page_type: PageType,
 }
 
@@ -32,7 +31,6 @@ impl Page {
             bw_position: size,
             key: 0,
             children: Vec::new(),
-            number: 0,
             page_type,
         }
     }
@@ -44,13 +42,12 @@ impl Page {
             bw_position: size as u16,
             key: 0,
             children: Vec::new(),
-            number: 0,
             page_type: PageType::Other,
         }
     }
 
     pub fn new_root() -> Self {
-        Page::with_capacity(database::DEFAULT_PAGE_SIZE, PageType::Leaf)
+        Page::with_capacity(database::DEFAULT_PAGE_SIZE, PageType::Other)
     }
 
     pub fn new_leaf() -> Self {
@@ -61,7 +58,7 @@ impl Page {
 
     pub fn new_interior() -> Self {
         let mut page = Page::with_capacity(database::DEFAULT_PAGE_SIZE, PageType::Interior);
-        page.put_u8(database::TABLE_LEAF_PAGE);
+        page.put_u8(database::TABLE_INTERIOR_PAGE);
         page
     }
 
@@ -107,11 +104,6 @@ impl Page {
 
     pub fn put_u32_bw(&mut self, value: u32) {
         self.put_bytes_bw(&u32_to_bytes(value));
-    }
-
-    // may panic
-    pub fn get_page_nr_last_child(&self) -> u32 {
-        self.children[self.children.len() - 1].number
     }
 
     pub fn get_u16(&self) -> u16 {
