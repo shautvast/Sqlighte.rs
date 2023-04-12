@@ -1,9 +1,14 @@
 [package]
 name = "sqlighters"
+description = "Easy creation of SQLite binary format for use in serverside applications, where typically the client runs SQLite in WASM"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+homepage = "https://gitlab.com/sander-hautvast/sqlighte.rs"
+repository = "https://gitlab.com/sander-hautvast/sqlighte.rs.git"
+license-file = "LICENSE"
+readme = "README.md"
+keywords = ["sqlite"]
+categories = ["database", "WASM"]
 
 [dependencies]
 byteorder = "1.4.3"
