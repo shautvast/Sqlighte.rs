@@ -1,5 +1,7 @@
 # Sqlighte.Rs
 
+https://crates.io/crates/sqlighters
+
 **Sqlighter**
 * Inspired by a new feature in .Net blazor (see https://www.youtube.com/watch?v=lP_qdhAHFlg&t=300s)
 * Creates a SQLite database file from any tabular data.
