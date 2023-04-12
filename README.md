@@ -52,9 +52,9 @@ fn test_build() -> Result<(), Error> {
 **Be aware**
 * The schema and the actual data don't have to match! But that is how SQLite itself also works, pretty much.
 * And: 2 records in the same table can contain values of totally different types(!). The number of values can also vary. All perfectly legal from the standpoint of Sqlighter.
-  And maybe not when writing to Sqlite itself, but perfectly readable!
-    * unittest SchemaCreationTests is proof of this.
+  And maybe not when writing to SQLite itself (using sql), but perfectly readable from the file.
+   
 
 
 **Current status**
-* It works for tables of any size, but probably not for indexes (may skip that feature) because you can always add them client-side(!)
+* It works for tables of any size. Indexes are not supported, but you can always add them client-side.
